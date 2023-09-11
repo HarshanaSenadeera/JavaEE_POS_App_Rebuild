@@ -1,9 +1,13 @@
 package lk.ijse.pos.servlet;
 
+import lk.ijse.pos.bo.BOFactory;
+import lk.ijse.pos.bo.custom.CustomerBO;
 import lk.ijse.pos.dto.CustomerDTO;
+import lk.ijse.pos.util.ResponseUtil;
 import org.apache.commons.dbcp2.BasicDataSource;
 
 import javax.json.*;
+import javax.servlet.ServletConfig;
 import javax.servlet.ServletContext;
 import javax.servlet.ServletException;
 import javax.servlet.annotation.WebServlet;
@@ -12,42 +16,45 @@ import javax.servlet.http.HttpServletRequest;
 import javax.servlet.http.HttpServletResponse;
 import java.io.IOException;
 import java.sql.*;
+import java.util.List;
 
 @WebServlet(urlPatterns = {"/pages/customer"})
 public class CustomerServlet extends HttpServlet {
 
+    private CustomerBO customerBO;
+
+    @Override
+    public void init(ServletConfig config) throws ServletException {
+        super.init(config);
+        customerBO= (CustomerBO) BOFactory.getBoFactory().getBoType(BOFactory.BoType.Customer);
+    }
     @Override
     protected void doGet(HttpServletRequest req, HttpServletResponse resp) throws ServletException, IOException {
 
-        String servletPath = req.getServletPath();
 
-        System.out.println(servletPath);
+        try {
 
-        BasicDataSource dbcp = (BasicDataSource) getServletContext().getAttribute("dbcp");
+            List<CustomerDTO> allCustomer = customerBO.getAllCustomer();
 
-        try( Connection connection = dbcp.getConnection()) {
+            JsonArrayBuilder allCus= Json.createArrayBuilder();
 
-            PreparedStatement pstm = connection.prepareStatement("select * from customer");
-
-            ResultSet set = pstm.executeQuery();
-
-            JsonObjectBuilder customerObject = Json.createObjectBuilder();
-            JsonArrayBuilder customerArray = Json.createArrayBuilder();
-
-            while (set.next()){
-                CustomerDTO customerDTO = new CustomerDTO( set.getString(1), set.getString(2), set.getString(3));
-
-                customerObject.add("id",customerDTO.getId());
-                customerObject.add("name",customerDTO.getName());
-                customerObject.add("address",customerDTO.getAddress());
-
-                customerArray.add(customerObject.build());
+            for (CustomerDTO cus :allCustomer) {
+                JsonObjectBuilder customerBuilder=Json.createObjectBuilder();
+                customerBuilder.add("id",cus.getId());
+                customerBuilder.add("name",cus.getName());
+                customerBuilder.add("address",cus.getAddress());
+                allCus.add(customerBuilder.build());
             }
 
-            resp.getWriter().print(customerArray.build());
+            resp.setContentType("application/json");
+            resp.getWriter().print(ResponseUtil.genJson("Success","Loaded",allCus.build()));
 
+        } catch (ClassNotFoundException e) {
+            resp.setStatus(500);
+            resp.getWriter().print(ResponseUtil.genJson("Error", e.getMessage()));
         } catch (SQLException e) {
-            throw new RuntimeException(e);
+            resp.setStatus(500);
+            resp.getWriter().print(ResponseUtil.genJson("Error", e.getMessage()));
         }
 
 
@@ -56,44 +63,27 @@ public class CustomerServlet extends HttpServlet {
     @Override
     protected void doPost(HttpServletRequest req, HttpServletResponse resp) throws ServletException, IOException {
 
-        CustomerDTO customerDTO = new CustomerDTO(req.getParameter("cusID"),req.getParameter("cusName"),req.getParameter("cusAddress"));
+        try {
 
-        BasicDataSource dbcp = (BasicDataSource) getServletContext().getAttribute("dbcp");
+            String cusId=req.getParameter("cusID");
+            String cusName=req.getParameter("cusName");
+            String cusAddress= req.getParameter("cusAddress");
 
 
-        try(Connection connection = dbcp.getConnection()) {
+            if (customerBO.saveCustomer(new CustomerDTO(cusId,cusName,cusAddress))){
 
-            PreparedStatement pstm = connection.prepareStatement("insert into customer values (?,?,?)");
-
-            pstm.setObject(1,customerDTO.getId());
-            pstm.setObject(2,customerDTO.getName());
-            pstm.setObject(3,customerDTO.getAddress());
-
-            if(pstm.executeUpdate()>0){
-
-                JsonObjectBuilder messageBuilder = Json.createObjectBuilder();
-                messageBuilder.add("state","OK");
-                messageBuilder.add("message","Successfully Added");
-                messageBuilder.add("Data"," ");
-                resp.getWriter().print(messageBuilder.build());
-
+                resp.getWriter().print(ResponseUtil.genJson("Success","Successfully Added"));
+            }else {
+                resp.getWriter().print(ResponseUtil.genJson("error","Customer Added Fail"));
             }
-        } catch ( RuntimeException e) {
-            JsonObjectBuilder errorBuilder = Json.createObjectBuilder();
-            errorBuilder.add("state","Error");
-            errorBuilder.add("message",e.getLocalizedMessage());
-            errorBuilder.add("data"," ");
+
+        }catch (SQLException e){
+
             resp.setStatus(500);
+            resp.getWriter().print(ResponseUtil.genJson("Error", e.getMessage()));
 
-            resp.getWriter().print(errorBuilder.build());
-
-        } catch (SQLException e) {
-            JsonObjectBuilder errorSQL = Json.createObjectBuilder();
-            errorSQL.add("state","Error");
-            errorSQL.add("message",e.getLocalizedMessage());
-            errorSQL.add("data"," ");
-
-            resp.getWriter().print(errorSQL.build());
+        } catch (ClassNotFoundException e) {
+            throw new RuntimeException(e);
         }
 
 
@@ -102,46 +92,30 @@ public class CustomerServlet extends HttpServlet {
     @Override
     protected void doPut(HttpServletRequest req, HttpServletResponse resp) throws ServletException, IOException {
 
-        JsonReader reader = Json.createReader(req.getReader());
-        JsonObject customerObject = reader.readObject();
+        JsonReader reader=Json.createReader(req.getReader());
+        JsonObject customerObject=reader.readObject();
 
-        CustomerDTO customerDTO = new CustomerDTO(customerObject.getString("id"),customerObject.getString("name"),customerObject.getString("address"));
+        String cusId=customerObject.getString("id");
+        String cusName = customerObject.getString("name");
+        String cusAddress =customerObject.getString("address");
+        CustomerDTO customerDTO=new CustomerDTO(cusId,cusName,cusAddress);
 
-        ServletContext servletContext = getServletContext();
+        try {
 
-        try(Connection connection = ((BasicDataSource) servletContext.getAttribute("dbcp")).getConnection();) {
+            if (customerBO.updateCustomer(customerDTO)){
 
-            PreparedStatement pstm = connection.prepareStatement("update customer set name=?,address=? where id=?");
-
-           pstm.setObject(1,customerDTO.getName());
-           pstm.setObject(2,customerDTO.getAddress());
-           pstm.setObject(3,customerDTO.getId());
-
-            if(pstm.executeUpdate()>0){
-                JsonObjectBuilder objectBuilder = Json.createObjectBuilder();
-                objectBuilder.add("state","OK");
-                objectBuilder.add("message","Successfully Updated...!");
-                objectBuilder.add("data"," ");
-                resp.getWriter().print(objectBuilder.build());
-            }else {
-                throw new RuntimeException("Cant Update...!");
+                resp.getWriter().print(ResponseUtil.genJson("Success", "Customer Updated..!"));
+            }else{
+                resp.getWriter().print(ResponseUtil.genJson("Failed", "Customer Updated Failed..!"));
             }
 
-        } catch (RuntimeException e) {
-            JsonObjectBuilder objectBuilder = Json.createObjectBuilder();
-            objectBuilder.add("state","Error");
-            objectBuilder.add("message",e.getLocalizedMessage());
-            objectBuilder.add("data"," ");
+        } catch (ClassNotFoundException e) {
             resp.setStatus(500);
-            resp.getWriter().print(objectBuilder.build());
+            resp.getWriter().print(ResponseUtil.genJson("Error", e.getMessage()));
+        }catch (SQLException e){
 
-        } catch (SQLException e) {
-
-            JsonObjectBuilder objectBuilder = Json.createObjectBuilder();
-            objectBuilder.add("state","Error");
-            objectBuilder.add("message",e.getLocalizedMessage());
-            objectBuilder.add("data"," ");
-            resp.getWriter().print(objectBuilder.build());
+            resp.setStatus(500);
+            resp.getWriter().print(ResponseUtil.genJson("Error", e.getMessage()));
         }
 
 
@@ -150,41 +124,23 @@ public class CustomerServlet extends HttpServlet {
     @Override
     protected void doDelete(HttpServletRequest req, HttpServletResponse resp) throws ServletException, IOException {
 
+        String cusId=req.getParameter("id");
+        try {
 
-        String id = req.getParameter("id");
+            if (customerBO.deleteCustomer(cusId)){
 
-        BasicDataSource dbcp = (BasicDataSource) getServletContext().getAttribute("dbcp");
-
-        try (Connection connection = dbcp.getConnection()){
-
-
-            PreparedStatement pstm = connection.prepareStatement("delete from customer where id=?");
-
-            pstm.setObject(1,id);
-
-            if(pstm.executeUpdate()>0){
-                JsonObjectBuilder objectBuilder = Json.createObjectBuilder();
-                objectBuilder.add("state","OK");
-                objectBuilder.add("message","Delete Successfully....!");
-                objectBuilder.add("data"," ");
-
-
-                resp.getWriter().print(objectBuilder.build());
+                resp.getWriter().print(ResponseUtil.genJson("Success", "Customer Deleted..!"));
+            }else{
+                resp.getWriter().print(ResponseUtil.genJson("Failed", "Customer Delete Failed..!"));
             }
-        } catch ( RuntimeException e) {
-            JsonObjectBuilder objectBuilder = Json.createObjectBuilder();
-            objectBuilder.add("state","Error");
-            objectBuilder.add("message",e.getLocalizedMessage());
-            objectBuilder.add("data"," ");
+
+        } catch (ClassNotFoundException e) {
             resp.setStatus(500);
+            resp.getWriter().print(ResponseUtil.genJson("Error", e.getMessage()));
+        }catch (SQLException e){
 
-        } catch (SQLException e) {
-            JsonObjectBuilder objectBuilder = Json.createObjectBuilder();
-            objectBuilder.add("state","Error");
-            objectBuilder.add("message",e.getLocalizedMessage());
-            objectBuilder.add("data"," ");
-
-            resp.getWriter().print(objectBuilder.build());
+            resp.setStatus(500);
+            resp.getWriter().print(ResponseUtil.genJson("Error", e.getMessage()));
         }
 
 

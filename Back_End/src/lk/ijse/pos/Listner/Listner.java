@@ -1,4 +1,4 @@
-package Listner;
+package lk.ijse.pos.Listner;
 
 
 import org.apache.commons.dbcp2.BasicDataSource;
@@ -34,5 +34,7 @@ public class Listner implements ServletContextListener {
             throw new RuntimeException(e);
         }
     }
+
+
 }
 

@@ -56,6 +56,7 @@ public class PurchaseOrderServlet extends HttpServlet {
         } catch (SQLException e) {
             e.printStackTrace();
         }
+
     }
 
     @Override
@@ -193,6 +194,9 @@ public class PurchaseOrderServlet extends HttpServlet {
         JsonObject jsonObject = reader.readObject();
 
         String code = jsonObject.getString("code");
+        String name = jsonObject.getString("item_name");
+        String qty = jsonObject.getString("item_contity");
+        String price = jsonObject.getString("unit_price");
 
         BasicDataSource dbcp = (BasicDataSource) getServletContext().getAttribute("dbcp");
 
@@ -200,7 +204,7 @@ public class PurchaseOrderServlet extends HttpServlet {
         try (Connection connection = dbcp.getConnection()){
 
 
-            ItemDTO itemDTO = new ItemDTO();
+            ItemDTO itemDTO = new ItemDTO(code,name,qty,price);
             itemDTO.setCode(code);
 
             PreparedStatement pstm = connection.prepareStatement("SELECT * FROM item WHERE code=?");
@@ -212,14 +216,14 @@ public class PurchaseOrderServlet extends HttpServlet {
 
             while (resultSet.next()) {
                 String code1 = resultSet.getString(1);
-                String name = resultSet.getString(2);
-                String qty = String.valueOf(resultSet.getInt(3));
-                String price = String.valueOf(resultSet.getDouble(4));
+                String name1 = resultSet.getString(2);
+                String qty1 = String.valueOf(resultSet.getInt(3));
+                String price1 = String.valueOf(resultSet.getDouble(4));
 
                 objectBuilder.add("code", code1);
-                objectBuilder.add("item_name", name);
-                objectBuilder.add("item_contity", qty);
-                objectBuilder.add("unit_price", price);
+                objectBuilder.add("item_name", name1);
+                objectBuilder.add("item_contity", qty1);
+                objectBuilder.add("unit_price", price1);
             }
 
             resp.getWriter().print(objectBuilder.build());

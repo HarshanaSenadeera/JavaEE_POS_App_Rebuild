@@ -7,7 +7,9 @@ function getAll() {
 
        url:"http://localhost:8080/POS/pages/item",
 
-        success:function (item) {
+        success:function (response) {
+
+           let item=response.data;
             for (let i in item) {
 
                 let it=item[i];

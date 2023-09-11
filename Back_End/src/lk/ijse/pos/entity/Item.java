@@ -1,16 +1,16 @@
-package lk.ijse.pos.dto;
+package lk.ijse.pos.entity;
 
-public class ItemDTO {
+public class Item {
 
     String code;
     String name;
     String qty;
     String price;
 
-    public ItemDTO() {
+    public Item() {
     }
 
-    public ItemDTO(String code, String name, String qty, String price) {
+    public Item(String code, String name, String qty, String price) {
         this.code = code;
         this.name = name;
         this.qty = qty;

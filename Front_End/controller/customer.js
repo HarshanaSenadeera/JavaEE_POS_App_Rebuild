@@ -8,7 +8,8 @@ function getAll() {
     $.ajax({
        url:"http://localhost:8080/POS/pages/customer",
 
-        success:function (customer) {
+        success:function (response) {
+           let customer=response.data;
             for (let i in customer) {
 
                 let cus=customer[i];
